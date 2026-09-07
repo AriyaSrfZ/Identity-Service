@@ -1,0 +1,20 @@
+services:
+  identity-service:
+    build: .
+    ports:
+      - "8001:8000"
+    volumes:
+      - identity_data:/app/data
+      - identity_keys:/app/keys
+    environment:
+      DATABASE_URL: sqlite:///./data/identity.db
+      PLATFORM_ADMIN_USERNAME: ${PLATFORM_ADMIN_USERNAME:-platform_admin}
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:?set a real password in .env}
+      PLATFORM_API_KEY: ${PLATFORM_API_KEY:?generate one, see README}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      JWT_ISSUER: ${JWT_ISSUER:-identity-service}
+    restart: unless-stopped
+
+volumes:
+  identity_data:
+  identity_keys:

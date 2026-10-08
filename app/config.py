@@ -32,5 +32,8 @@ class Settings:
     access_token_expire_minutes: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
     jwt_issuer: str = os.getenv("JWT_ISSUER", "identity-service")
 
+    rate_limit_login: str = os.getenv("RATE_LIMIT_LOGIN", "10/minute")
+    rate_limit_register: str = os.getenv("RATE_LIMIT_REGISTER", "5/minute")
+
 
 settings = Settings()

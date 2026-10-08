@@ -5,7 +5,9 @@ venv/
 *.egg-info/
 .env
 data/*.db
-keys/*.pem
+keys/
+*.pem
+*.key
 .DS_Store
 .vscode/
 *.log

@@ -24,6 +24,10 @@ from app.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# Pre-computed cost-12 bcrypt hash used as a fallback to ensure constant-time
+# password verification when a user does not exist, eliminating timing attacks.
+DUMMY_BCRYPT_HASH = "$2b$12$e8kGV8iWnO0e0M1R4x9qMeN1X4nU3zL9b2iO1o6hP8e7wQ5vJ7e6."
+
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)

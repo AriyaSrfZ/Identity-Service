@@ -6,12 +6,16 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
 from app.config import settings
 from app.database import Base, engine, SessionLocal
 from app.security import hash_password
 from app import crud
 from app.models import User
 from app.routers import auth, tenants, users
+from app.routers.auth import limiter
 
 
 def _bootstrap_platform_admin():
@@ -39,6 +43,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Identity Service", version="0.1.0", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.get("/health", tags=["meta"])

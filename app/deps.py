@@ -16,6 +16,8 @@ from fastapi import Depends, HTTPException, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
+import secrets
+
 from app.config import settings
 from app.database import get_db
 from app.security import decode_token
@@ -46,7 +48,7 @@ def get_current_claims(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     x_api_key: Optional[str] = Header(None),
 ) -> Optional[Claims]:
-    if settings.platform_api_key and x_api_key == settings.platform_api_key:
+    if settings.platform_api_key and x_api_key and secrets.compare_digest(x_api_key, settings.platform_api_key):
         return Claims(user_id=None, username="platform-api-key", tenant_id=None, role="super_admin")
 
     if credentials:

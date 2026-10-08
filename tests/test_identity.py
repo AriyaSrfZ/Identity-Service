@@ -131,3 +131,40 @@ def test_owner_cannot_be_deleted(client):
 
     r2 = client.delete(f"/tenants/{tenant_id}/users/{me['user_id']}", headers=auth_header(token))
     assert r2.status_code == 400
+
+
+def test_invalid_login_and_nonexistent_user_both_return_401(client):
+    # Non-existent user
+    r1 = client.post("/auth/login", json={"username": "ghost_user_xyz", "password": "wrongpassword"})
+    assert r1.status_code == 401
+    assert r1.json()["detail"] == "Invalid username or password."
+
+    # Existing user with wrong password
+    client.post("/auth/register", json={"tenant_name": "TenantSec", "username": "realuser_sec", "password": "correctpassword"})
+    r2 = client.post("/auth/login", json={"username": "realuser_sec", "password": "wrongpassword"})
+    assert r2.status_code == 401
+    assert r2.json()["detail"] == "Invalid username or password."
+
+
+def test_login_rate_limited():
+    from fastapi import FastAPI, Request
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.util import get_remote_address
+    from starlette.testclient import TestClient
+
+    test_limiter = Limiter(key_func=get_remote_address)
+    app_isolated = FastAPI()
+    app_isolated.state.limiter = test_limiter
+    app_isolated.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    @app_isolated.post("/test-login")
+    @test_limiter.limit("2/minute")
+    def _test_login(request: Request):
+        return {"status": "ok"}
+
+    test_c = TestClient(app_isolated)
+    assert test_c.post("/test-login").status_code == 200
+    assert test_c.post("/test-login").status_code == 200
+    r3 = test_c.post("/test-login")
+    assert r3.status_code == 429

@@ -1,13 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.database import get_db
 from app.config import settings
 from app import crud
-from app.security import hash_password, verify_password, create_access_token, get_public_key_pem
+from app.security import hash_password, verify_password, create_access_token, get_public_key_pem, DUMMY_BCRYPT_HASH
 from app.schemas import RegisterRequest, LoginRequest, TokenResponse, MeOut
 from app.deps import require_auth, Claims
 
+limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(tags=["auth"])
 
 
@@ -17,7 +20,8 @@ router = APIRouter(tags=["auth"])
     summary="Self-service signup: creates a new tenant (company) and its first user (role=owner)",
     responses={400: {"description": "Username/email already taken"}},
 )
-def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+@limiter.limit(settings.rate_limit_register)
+def register(request: Request, payload: RegisterRequest, db: Session = Depends(get_db)):
     if crud.username_taken(db, payload.username):
         raise HTTPException(status_code=400, detail="That username is already taken.")
     if payload.email and crud.email_taken(db, payload.email):
@@ -38,9 +42,15 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     summary="Log in, get a bearer token",
     responses={401: {"description": "Invalid username or password"}},
 )
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit(settings.rate_limit_login)
+def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
     user = crud.get_user_by_username(db, payload.username)
-    if not user or not user.is_active or not verify_password(payload.password, user.password_hash):
+    # Constant-time password check: always compute verify_password against either the user's
+    # actual password hash or a precomputed dummy hash, preventing username enumeration via timing attacks.
+    target_hash = user.password_hash if user else DUMMY_BCRYPT_HASH
+    is_valid_password = verify_password(payload.password, target_hash)
+
+    if not user or not user.is_active or not is_valid_password:
         raise HTTPException(status_code=401, detail="Invalid username or password.")
     token = create_access_token(user)
     return TokenResponse(access_token=token, expires_in_minutes=settings.access_token_expire_minutes)
